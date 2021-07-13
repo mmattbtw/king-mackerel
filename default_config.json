@@ -1,0 +1,27 @@
+{
+ "token": "",
+ "prefix": "",
+ "owner_ids": [],
+ "postgres_db": "",
+ "postgres_user": "",
+ "postgres_password": "",
+ "postgres_host": "",
+ "postgres_port": "",
+ "comments":[
+     "When copying and pasting this file to use as your own",
+     "make sure you delete this entire array of comments, including",
+     "the \"comments\" section entirely, leaving just postgres_port as the last",
+     "data field.",
+     "",
+     "",
+     "",
+     "Token = bot token | prefix = command prefix (e.g. !, ?, $, etc.) - though, the bot",
+     "uses /commands to function, so it's not super necessary. | owner_ids is an array of discord",
+     "user IDs which represents owners of the bot. | All postgres fields are for a PostgreSQL database.",
+     "",
+     "",
+     "",
+     "Finally, make sure you rename this file to 'config.json' in order for it to work. Do this",
+     "before running the bot for the first time."
+ ]
+}

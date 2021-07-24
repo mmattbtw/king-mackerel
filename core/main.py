@@ -2,14 +2,14 @@ import discord
 import logging
 import logsetup
 import os
-from games import fishdata
+import database
+import db_models
 
+from games import fishdata
 from discord import LoginFailure
 from discord.ext.commands import Bot as BotBase
 from discord.ext.commands.errors import NoEntryPointError
-
 from discord_slash import SlashCommand
-
 from models.config import Config
 
 cfg = Config()
@@ -17,6 +17,12 @@ cfg = Config()
 # Setup logger
 logsetup.create_logger()
 log = logging.getLogger()
+
+# Test db connection
+database.connect()
+database.disconnect()
+
+db_models.create_tables()
 
 fishdata.check_prefixes() # Ensure proper formatting of prefixes
 
@@ -36,7 +42,10 @@ class Bot(BotBase):
         self.launch()
 
     def load_cogs(self):
-        for cog in os.listdir("./cogs"):
+        self.load_extension('events')
+        log.info('Cog loaded: events')
+
+        for cog in os.listdir(os.path.join("../", "cogs/")):
             if cog.endswith(".py"):
                 cog_basename = cog.replace('.py', '')
                 cog = f"cogs.{cog_basename}"

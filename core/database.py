@@ -1,6 +1,7 @@
-import psycopg2
 import logging
-from sqlalchemy import create_engine
+
+from peewee import *
+from playhouse import postgres_ext
 from models.config import Config
 
 log = logging.getLogger()
@@ -8,18 +9,18 @@ cfg = Config()
 
 # Setup connection to postgres server
 
-def get_database():
+db = postgres_ext.PostgresqlDatabase(cfg.postgres_db, user=cfg.postgres_user, password=cfg.postgres_password, host=cfg.postgres_host)
+
+def connect():
     try:
-        engine = get_engine()
-        log.info("Connected to PostgreSQL database!")
-    except IOError:
-        log.exception("Failed to get database connection!")
-        return None
+        db.connect()
+        log.info('Connected to database.')
+    except Exception as e:
+        log.critical('Failed to connect to database! ' + str(e))
 
-    return engine
-
-def get_engine():
-    url = f'postgresql://{cfg.postgres_user}:{cfg.postgres_password}@{cfg.postgres_host}:{cfg.postgres_port}/{cfg.postgres_db}'
-    engine = create_engine(url)
-    return engine
-
+def disconnect():
+    try:
+        db.close()
+        log.info('Disconnected from database.')
+    except Exception as e:
+        log.critical('Failed to disconnect from database! ' + str(e))

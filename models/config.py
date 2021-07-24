@@ -3,7 +3,7 @@ import os
 import logging
 
 log = logging.getLogger()
-config_path = os.path.join(os.curdir, 'config.json')
+config_path = os.path.join('../', os.curdir, 'config.json')
 
 class Config:
     """The configuration file for the bot. Contains sensitive credentials, i.e. tokens and API keys."""
@@ -11,6 +11,11 @@ class Config:
     token = ''
     prefix = '/'
     owner_ids = []
+    postgres_db = ''
+    postgres_user = ''
+    postgres_password = ''
+    postgres_host = ''
+    postgres_port = ''
 
     def __init__(self):
         if os.path.exists(config_path):

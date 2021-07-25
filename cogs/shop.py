@@ -1,5 +1,6 @@
 import discord
 import discord_slash
+import peewee
 
 import games.exp_data as exp
 
@@ -12,7 +13,7 @@ from discord_slash import cog_ext, SlashContext, ComponentContext
 from discord_slash.model import ButtonStyle
 from discord_slash.utils.manage_components import create_button, create_select, create_actionrow, create_select_option, \
     wait_for_component
-from core.db_models import User
+from core.db_models import *
 from etc import discord_formatting as fmt
 
 from etc.custom_embeds import CEmbed
@@ -129,23 +130,21 @@ class Shop(commands.Cog):
             await ctx.edit_origin(embed=embed)
             return
 
-        purchase_buttons = [create_button(style=ButtonStyle.blurple, label='+1', custom_id='bait_1')]
-        subtract_buttons = [
-            create_button(style=ButtonStyle.secondary, label='-1', custom_id='bait_-1'),
-            create_button(style=ButtonStyle.secondary, label='-5', custom_id='bait_-5'),
-            create_button(style=ButtonStyle.secondary, label='-10', custom_id='bait_-10'),
-            create_button(style=ButtonStyle.secondary, label='-25', custom_id='bait_-25')
-        ]
+        additives = [1, 5, 10, 25]
+        subtractions = [-1, -5, -10, -25]
 
-        if coins >= cost * 5:
-            purchase_buttons.append(create_button(style=ButtonStyle.blurple, label='+5', custom_id='bait_5'))
-        if coins >= cost * 10:
-            purchase_buttons.append(create_button(style=ButtonStyle.blurple, label='+10', custom_id='bait_10'))
-        if coins >= cost * 25:
-            purchase_buttons.append(create_button(style=ButtonStyle.blurple, label='+25', custom_id='bait_25'))
+        add_buttons = []
+        subtract_buttons = []
+
+        for i in additives:
+            add_buttons.append(create_button(style=ButtonStyle.blurple, label=f'+{i}', custom_id=f'bait_{i}'))
+
+        for i in subtractions:
+            subtract_buttons.append(create_button(style=ButtonStyle.secondary, label=f'{i}', custom_id=f'bait_{i}'))
 
         components = [
-            create_actionrow(*purchase_buttons),
+            create_actionrow(*add_buttons),
+            create_actionrow(*subtract_buttons),
             create_actionrow(create_button(style=ButtonStyle.green, label='Checkout', custom_id='checkout'))
         ]
 
@@ -175,52 +174,70 @@ class Shop(commands.Cog):
                 # TODO: Send checkout message
                 break
 
-            addition_invalid_amt = '\n' + fmt.as_bold('You cannot subtract bait without adding it to your cart first!')
-            addition_insufficient_funds = '\n' + fmt.as_bold(
-                'Insufficint balance! Please subtract from your cart or checkout!')
-
             # assumes custom ids of buttons end with the number to increase quantity by.
             amount_increased = int(str(button_id).split('_')[-1])
 
-            # TODO: FIX
+            addition_invalid_amt = '\n' + fmt.as_bold('You cannot subtract bait without adding it to your cart first!')
+            addition_insufficient_funds = '\n' + fmt.as_bold(
+                f'Insufficient balance to add this much bait to your cart!')
+
             warned = False
             if count + amount_increased < 0:
                 if addition_invalid_amt not in embed.description:
                     embed.description = embed.description + addition_invalid_amt
-                    embed.colour = Colour.orange()
-                    warned = True
-                    await button_ctx.edit_origin(embed=embed)
-                #button_ctx = await wait_for_component(self.bot, components=components)
+                embed.colour = Colour.orange()
+                warned = True
+                await button_ctx.edit_origin(content="\u200b", embed=embed)
 
             if coins - (cost * amount_increased) < 0:
                 if addition_insufficient_funds not in embed.description:
                     embed.description = embed.description + addition_insufficient_funds
-                    embed.colour = Colour.red()
-                    warned = True
-                    await button_ctx.edit_origin(embed=embed)
-                #button_ctx = await wait_for_component(self.bot, components=components)
+                embed.colour = Colour.red()
+                warned = True
+                await button_ctx.edit_origin(content="\u200b", embed=embed)
 
             if not warned:
                 count += amount_increased
                 coins -= cost * amount_increased
 
+                # If the user input is valid after having been warned, return the embed to normal.
+                if addition_invalid_amt in embed.description:
+                    embed.description = embed.description.replace(addition_invalid_amt, '')
+
+                if addition_insufficient_funds in embed.description:
+                    embed.description = embed.description.replace(addition_insufficient_funds, '')
+
+                embed.colour = Colour.blue()
                 embed.set_footer(text=f'Cart: {count:,}x {bait} | Remaining Balance: {coins}')
                 await button_ctx.edit_origin(embed=embed)
 
         # Modify embed and award user items
-
         if count == 0:
             embed = CEmbed()
             embed.colour = Colour.random()
             embed.description = 'See you next time!'
-            await button_ctx.edit_origin(embed=embed)
+            await button_ctx.edit_origin(embed=embed, components=[])
             return
 
+        # Create bait entry in DB
+        try:
+            FishingBaitInventory.create(user=user, bait_type=bait.value, amount=count, active=False)
+        except peewee.IntegrityError:
+            existing: FishingBaitInventory = user.fishing_bait_inventory
+            existing.amount += count
+            existing.save()
+
+        # Save user balance in DB
+        user.coins = coins
+        user.save()
+
         embed.title = 'Checkout Successful!'
-        embed.description = f'Congrats on your purchase of {count:,} {str(bait)}! Now get out there and ' \
-                            f'catch some fish!'
+        embed.description = f'Congrats on your purchase of {count:,} {str(bait).lower()}! Now get out there and ' \
+                            f'catch some fish!\n\n' \
+                            f'Use the `/select` command to equip your bait and equipment!'
+        embed.colour = Colour.green()
         embed.set_footer(text=f'Remaining balance: {coins:,}')
-        await button_ctx.edit_origin(embed=embed)
+        await button_ctx.edit_origin(embed=embed, components=[])
 
 
 def setup(bot):

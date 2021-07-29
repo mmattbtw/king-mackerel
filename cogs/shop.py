@@ -32,6 +32,7 @@ rod_data = fishdata.rod_info
 class Shop(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.locked_ids = []
 
     @cog_ext.cog_slash(description='Opens the shop menu.', guild_ids=[857568078626684928])
     async def shop(self, ctx: SlashContext):
@@ -92,10 +93,12 @@ class Shop(commands.Cog):
             bait_selections.append(
                 create_select_option(str(available_option), value=available_option.value, description=description))
         for locked_option, level, description in fish_bait_locked:
-            bait_selections.append(create_select_option(str(locked_option), value=locked_option.value, emoji=lock,
+            value = str(locked_option.value)
+            bait_selections.append(create_select_option(str(locked_option), value=value, emoji=lock,
                                                         description=description))
+            self.locked_ids.append(value)
 
-        bait_select = create_select(options=bait_selections, placeholder='Bait Shop', min_values=1, max_values=1,
+        bait_select = create_select(options=bait_selections, placeholder='Select a fish bait...', min_values=1, max_values=1,
                                     custom_id='bait_selections')
 
         embed = discord.Embed()
@@ -115,6 +118,11 @@ class Shop(commands.Cog):
     @cog_ext.cog_component()
     async def bait_selections(self, ctx: ComponentContext):
         button_id = ctx.selected_options[0]
+        for id in self.locked_ids:
+            if button_id == str(id):
+                embed = CEmbed().err('You do not have the required level to access this selection.')
+                await ctx.edit_origin(embed=embed)
+                return
 
         user, created = User.get_or_create(user_id=ctx.author_id)
         level = exp.get_rounded_level(user.exp)
@@ -140,7 +148,7 @@ class Shop(commands.Cog):
             add_buttons.append(create_button(style=ButtonStyle.blurple, label=f'+{i}', custom_id=f'bait_{i}'))
 
         for i in subtractions:
-            subtract_buttons.append(create_button(style=ButtonStyle.secondary, label=f'{i}', custom_id=f'bait_{i}'))
+            subtract_buttons.append(create_button(style=ButtonStyle.secondary, label=str(i), custom_id=f'bait_{i}'))
 
         components = [
             create_actionrow(*add_buttons),
@@ -171,7 +179,6 @@ class Shop(commands.Cog):
             button_id = button_ctx.custom_id
 
             if button_id == 'checkout':
-                # TODO: Send checkout message
                 break
 
             # assumes custom ids of buttons end with the number to increase quantity by.
@@ -220,12 +227,9 @@ class Shop(commands.Cog):
             return
 
         # Create bait entry in DB
-        try:
-            FishingBaitInventory.create(user=user, bait_type=bait.value, amount=count, active=False)
-        except peewee.IntegrityError:
-            existing: FishingBaitInventory = user.fishing_bait_inventory
-            existing.amount += count
-            existing.save()
+        bait_inventory, created = FishingBaitInventory.get_or_create(user=user, bait_type=bait.value)
+        bait_inventory.amount += count
+        bait_inventory.save()
 
         # Save user balance in DB
         user.coins = coins

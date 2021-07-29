@@ -50,7 +50,7 @@ class FishingBaitInventory(BaseModel):
     user = ForeignKeyField(User, backref='fishing_bait_inventory')
     # A user can't have more than one entry for the same bait type
     bait_type = IntegerField(unique=True)
-    amount = IntegerField()
+    amount = IntegerField(default=0)
     # Only one bait type can be active at a time for fishing
-    active = BooleanField()
+    active = BooleanField(default=False)
 

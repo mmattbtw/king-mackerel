@@ -126,7 +126,7 @@ bait_info = {
         'max_rarity': RarityData.VERY_RARE,
         'cost': 50,
         'quality_bonus_multiplier': 0.07,
-        'max_rarity_chance_multiplier': 0.15,
+        'max_rarity_bonus_multiplier': 0.15,
         'exp_bonus_multiplier': 0.0,
         'coin_multiplier': 0.03
     },
@@ -135,7 +135,7 @@ bait_info = {
         'max_rarity': RarityData.ULTRA_RARE,
         'cost': 70,
         'quality_bonus_multiplier': 0.10,
-        'max_rarity_chance_multiplier': 0.15,
+        'max_rarity_bonus_multiplier': 0.15,
         'exp_bonus_multiplier': 0.1,
         'coin_multiplier': 0.05
     },
@@ -144,7 +144,7 @@ bait_info = {
         'max_rarity': RarityData.ULTRA_RARE,
         'cost': 75,
         'quality_bonus_multiplier': 0.25,
-        'max_rarity_chance_multiplier': 0.15,
+        'max_rarity_bonus_multiplier': 0.15,
         'exp_bonus_multiplier': 0.14,
         'coin_multiplier': 0.10
     },
@@ -153,7 +153,7 @@ bait_info = {
         'max_rarity': RarityData.ULTRA_RARE,
         'cost': 90,
         'quality_bonus_multiplier': 0.28,
-        'max_rarity_chance_multiplier': 0.22,
+        'max_rarity_bonus_multiplier': 0.22,
         'exp_bonus_multiplier': 0.18,
         'coin_multiplier': 0.10
     }, #TODO: Complete the rest

@@ -45,12 +45,11 @@ class FishingRod(BaseModel):
     minimum_level_required = IntegerField()
     max_rarity_possible = IntegerField()
     cast_time = DoubleField()
+    active = BooleanField()
 
 class FishingBaitInventory(BaseModel):
     user = ForeignKeyField(User, backref='fishing_bait_inventory')
-    # A user can't have more than one entry for the same bait type
-    bait_type = IntegerField(unique=True)
+    bait_id = TextField()
     amount = IntegerField(default=0)
     # Only one bait type can be active at a time for fishing
     active = BooleanField(default=False)
-

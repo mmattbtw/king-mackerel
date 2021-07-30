@@ -22,7 +22,6 @@ lock = '🔒'
 bait_data = fishdata.bait_info
 rod_data = fishdata.rod_info
 
-
 # Users can purchase:
 #
 # - Fishing Rods
@@ -32,10 +31,14 @@ rod_data = fishdata.rod_info
 class Shop(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.locked_ids = []
 
+    # noinspection PyAttributeOutsideInit
     @cog_ext.cog_slash(description='Opens the shop menu.', guild_ids=[857568078626684928])
     async def shop(self, ctx: SlashContext):
+        self.fish_bait_available = []
+        self.fish_bait_locked = []
+
+        # All this method does is send buttons to the user for shop selection.
         user, created = User.get_or_create(user_id=ctx.author_id)
         level = exp.get_rounded_level(user.exp)
 
@@ -49,6 +52,7 @@ class Shop(commands.Cog):
         embed.description = 'Which shop would you like to visit?'
         embed.colour = Colour.blurple()
 
+        # Buttons to choose which shop to visit
         buttons = [
             create_button(style=ButtonStyle.blurple, label='Bait Shop', custom_id='on_shop_bait'),
             create_button(style=ButtonStyle.blurple, label='Rod Shop', custom_id='on_shop_rod')
@@ -59,44 +63,26 @@ class Shop(commands.Cog):
 
     @cog_ext.cog_component()
     async def on_shop_bait(self, ctx: ComponentContext):
+        # This code gets run as soon as the "bait shop" button is selected. This produces a dropdown menu.
         user, created = User.get_or_create(user_id=ctx.author_id)
         level = exp.get_rounded_level(user.exp)
 
         # Fishing Bait
-        fish_bait_available = []
-        fish_bait_locked = []
+        for bait in bait_data:
+            desc = f'Cost: {bait.cost} | Lvl. Req: {bait.level_required} | Max Rarity: {bait.max_rarity_enum()}'
 
-        for key in bait_data:
-            key_data = bait_data.get(key)
-
-            # TODO: Remove for production
-            # Only here while we continue to build out this feature.
-            #
-            # We do not encounter KeyErrors if the dictionaries are
-            # properly filled out
-            try:
-                level_required = key_data['level_required']
-                cost = key_data['cost']
-                max_rarity = str(key_data['max_rarity'])
-
-                desc = f'Cost: {cost} | Lvl. Req: {level_required} | Max Rarity: {max_rarity}'
-            except KeyError:
-                continue
-
-            if level_required <= level:
-                fish_bait_available.append((key, desc))
+            if bait.level_required <= level:
+                self.fish_bait_available.append((bait, desc))
             else:
-                fish_bait_locked.append((key, level_required, desc))
+                self.fish_bait_locked.append((bait, bait.level_required, desc))
 
         bait_selections = []
-        for available_option, description in fish_bait_available:
-            bait_selections.append(
-                create_select_option(str(available_option), value=available_option.value, description=description))
-        for locked_option, level, description in fish_bait_locked:
-            value = str(locked_option.value)
-            bait_selections.append(create_select_option(str(locked_option), value=value, emoji=lock,
-                                                        description=description))
-            self.locked_ids.append(value)
+
+        for available_bait, description in self.fish_bait_available:
+            bait_selections.append(create_select_option(available_bait.formatted_name(), value=available_bait.id, description=description))
+
+        for locked_bait, level, description in self.fish_bait_locked:
+            bait_selections.append(create_select_option(locked_bait.formatted_name(), value=locked_bait.id, emoji=lock, description=description))
 
         bait_select = create_select(options=bait_selections, placeholder='Select a fish bait...', min_values=1, max_values=1,
                                     custom_id='bait_selections')
@@ -117,9 +103,10 @@ class Shop(commands.Cog):
 
     @cog_ext.cog_component()
     async def bait_selections(self, ctx: ComponentContext):
-        button_id = ctx.selected_options[0]
-        for id in self.locked_ids:
-            if button_id == str(id):
+        # This code gets run whenever a bait item is selected from the shop.
+        button_id = ctx.selected_options[0] # Equates to the name of the bait selected
+        for bait in self.fish_bait_locked:
+            if button_id == str(bait.id):
                 embed = CEmbed().err('You do not have the required level to access this selection.')
                 await ctx.edit_origin(embed=embed)
                 return
@@ -130,10 +117,8 @@ class Shop(commands.Cog):
 
         # Using selection as an index. A bit of a hacky workaround.
         # Requires that fishdata.bait_info be written in order of the enum values from least to greatest.
-        bait = Bait(int(button_id))
-        selection_data = bait_data[bait]
-        cost = selection_data['cost']
-        if coins < cost:
+        bait = fishdata.get_bait_by_id(button_id)
+        if coins < bait.cost:
             embed = CEmbed().err('Insufficient balance! You do not have enough coins to purchase any bait.')
             await ctx.edit_origin(embed=embed)
             return
@@ -160,14 +145,18 @@ class Shop(commands.Cog):
         embed.title = 'Bait Shop: ' + str(bait)
         embed.description = f'Click the buttons below to add bait to your shopping cart, then press the green button to checkout!\n\n' \
                             f'{fmt.as_bold_underline("Bait Info:")}\n' \
-                            f'- Level Required: {selection_data["level_required"]}\n' \
-                            f'- Cost: {selection_data["cost"]}\n' \
-                            f'- Max Rarity: {selection_data["max_rarity"]}\n' \
-                            f'- Max Rarity Catch Chance: +{selection_data["max_rarity_bonus_multiplier"]:.1%}\n' \
-                            f'- Exp Bonus: +{selection_data["exp_bonus_multiplier"]:.1%}\n' \
-                            f'- Coin Bonus: +{selection_data["coin_multiplier"]:.1%}\n' \
-                            f'- Quality Bonus: +{selection_data["quality_bonus_multiplier"]:.1%}\n'
-        embed.set_footer(text=f'Cart: 0x {bait} | Remaining Balance: {coins}')
+                            f'- Level Required: {bait.level_required:,}\n' \
+                            f'- Cost: {bait.cost:,}\n' \
+                            f'- Max Rarity: {bait.max_rarity_enum()}\n' \
+                            f'- Luck: +{bait.luck:.1%}\n' \
+                            f'- Exp Bonus: +{bait.exp_multiplier:.1%}\n' \
+                            f'- Coin Bonus: +{bait.coin_multiplier:.1%}\n\n' + \
+                            fmt.as_bold_underline('Probability Table:' + '\n')
+
+        for rarity, prob in bait.get_probability_set():
+            embed.description += f'* {fmt.as_bold(rarity)}: {prob:.2%}\n'
+
+        embed.set_footer(text=f'Cart: 0x {bait} | Remaining Balance: {coins:,} coins')
         embed.colour = Colour.blue()
 
         await ctx.edit_origin(embed=embed, components=components)
@@ -194,9 +183,12 @@ class Shop(commands.Cog):
                     embed.description = embed.description + addition_invalid_amt
                 embed.colour = Colour.orange()
                 warned = True
+
+                # \u200b is a blank character. Needed to tell discord to update the content of the message.
+                # Updating just the embed field is not sufficient.
                 await button_ctx.edit_origin(content="\u200b", embed=embed)
 
-            if coins - (cost * amount_increased) < 0:
+            if coins - (bait.cost * amount_increased) < 0:
                 if addition_insufficient_funds not in embed.description:
                     embed.description = embed.description + addition_insufficient_funds
                 embed.colour = Colour.red()
@@ -205,7 +197,7 @@ class Shop(commands.Cog):
 
             if not warned:
                 count += amount_increased
-                coins -= cost * amount_increased
+                coins -= bait.cost * amount_increased
 
                 # If the user input is valid after having been warned, return the embed to normal.
                 if addition_invalid_amt in embed.description:
@@ -227,7 +219,7 @@ class Shop(commands.Cog):
             return
 
         # Create bait entry in DB
-        bait_inventory, created = FishingBaitInventory.get_or_create(user=user, bait_type=bait.value)
+        bait_inventory, created = FishingBaitInventory.get_or_create(user=user, bait_id=bait.id)
         bait_inventory.amount += count
         bait_inventory.save()
 
@@ -240,7 +232,7 @@ class Shop(commands.Cog):
                             f'catch some fish!\n\n' \
                             f'Use the `/select` command to equip your bait and equipment!'
         embed.colour = Colour.green()
-        embed.set_footer(text=f'Remaining balance: {coins:,}')
+        embed.set_footer(text=f'Remaining balance: {coins:,} coins')
         await button_ctx.edit_origin(embed=embed, components=[])
 
 

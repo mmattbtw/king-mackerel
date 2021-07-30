@@ -1,15 +1,18 @@
+import math
+from dataclasses import dataclass
+
 import numpy as np
 import random
 
 from etc import discord_formatting as fmt
-from enum import Enum
+from etc.data_enum import DataEnum
 from discord.colour import Colour
 
 from core.db_models import *
 
 log = logging.getLogger()
 
-class RarityData(Enum):
+class RarityType(DataEnum):
     TRASH = 0
     VERY_COMMON = 1
     COMMON = 2
@@ -21,22 +24,7 @@ class RarityData(Enum):
     MYTHICAL = 8
     LEGENDARY = 9
 
-    def __int__(self):
-        return self.value
-
-    def __str__(self):
-        if "_" in self.name:
-            ret = ''
-            for split in self.name.split("_"):
-                ret += f'{split.capitalize()} '
-
-            ret = ret.strip()
-            return ret
-
-        return self.name.capitalize()
-
-
-class QualityData(Enum):
+class QualityData(DataEnum):
     UNSELLABLE = 0
     BAD = 1
     POOR = 2
@@ -62,130 +50,90 @@ class QualityData(Enum):
 
         return switcher.get(self)
 
-class Bait(Enum):
-    SMALL_WORM = 0
-    LARGE_WORM = 1
-    SMALL_SHRIMP = 2
-    LARGE_SHRIMP = 3
-    GIANT_SHRIMP = 4
-    FROZEN_FINGER_MULLET = 5
-    LIVE_FINGER_MULLET = 6
-    LEECH = 7
-    CRICKET = 8
-    FROZEN_MACKEREL = 9
-    LIVE_MACKEREL = 10
-    SINGLE_HOOK_LURE = 11
-    DOUBLE_HOOK_LURE = 12
-    REFLECTIVE_SINGLE_HOOK_LURE = 13
-    REFLECTIVE_DOUBLE_HOOK_LURE = 14
-    EXTRA_LARGE_REFLECTIVE_LURE = 15
+all_rarities = [x for x in RarityType]
+
+@dataclass
+class Bait:
+    id: str
+    level_required: int
+    cost: int
+    max_rarity: int
+    luck: float
+    exp_multiplier: float
+    coin_multiplier: float
 
     def __str__(self):
-        name = str(self.name)
-        return name.replace('_', ' ').capitalize()
+        return self.formatted_name()
 
-bait_info = {
-    Bait.SMALL_WORM: {
-        'level_required': 5,
-        'max_rarity': RarityData.UNCOMMON,
-        'cost': 10,
-        'quality_bonus_multiplier': 0.0,
-        'max_rarity_bonus_multiplier': 0.0,
-        'exp_bonus_multiplier': 0.0,
-        'coin_multiplier': 0.0
-    },
-    Bait.LARGE_WORM: {
-        'level_required': 7,
-        'max_rarity': RarityData.RARE,
-        'cost': 25,
-        'quality_bonus_multiplier': 0.0,
-        'max_rarity_bonus_multiplier': 0.0,
-        'exp_bonus_multiplier': 0.0,
-        'coin_multiplier': 0.0
-    },
-    Bait.SMALL_SHRIMP: {
-        'level_required': 11,
-        'max_rarity': RarityData.RARE,
-        'cost': 35,
-        'quality_bonus_multiplier': 0.05,
-        'max_rarity_bonus_multiplier': 0.0,
-        'exp_bonus_multiplier': 0.0,
-        'coin_multiplier': 0.0
-    },
-    Bait.LARGE_SHRIMP: {
-        'level_required': 16,
-        'max_rarity': RarityData.VERY_RARE,
-        'cost': 40,
-        'quality_bonus_multiplier': 0.05,
-        'max_rarity_bonus_multiplier': 0.10,
-        'exp_bonus_multiplier': 0.0,
-        'coin_multiplier': 0.03
-    },
-    Bait.GIANT_SHRIMP: {
-        'level_required': 22,
-        'max_rarity': RarityData.VERY_RARE,
-        'cost': 50,
-        'quality_bonus_multiplier': 0.07,
-        'max_rarity_bonus_multiplier': 0.15,
-        'exp_bonus_multiplier': 0.0,
-        'coin_multiplier': 0.03
-    },
-    Bait.FROZEN_FINGER_MULLET: {
-        'level_required': 30,
-        'max_rarity': RarityData.ULTRA_RARE,
-        'cost': 70,
-        'quality_bonus_multiplier': 0.10,
-        'max_rarity_bonus_multiplier': 0.15,
-        'exp_bonus_multiplier': 0.1,
-        'coin_multiplier': 0.05
-    },
-    Bait.LIVE_FINGER_MULLET: {
-        'level_required': 41,
-        'max_rarity': RarityData.ULTRA_RARE,
-        'cost': 75,
-        'quality_bonus_multiplier': 0.25,
-        'max_rarity_bonus_multiplier': 0.15,
-        'exp_bonus_multiplier': 0.14,
-        'coin_multiplier': 0.10
-    },
-    Bait.LEECH: {
-        'level_required': 48,
-        'max_rarity': RarityData.ULTRA_RARE,
-        'cost': 90,
-        'quality_bonus_multiplier': 0.28,
-        'max_rarity_bonus_multiplier': 0.22,
-        'exp_bonus_multiplier': 0.18,
-        'coin_multiplier': 0.10
-    }, #TODO: Complete the rest
-    Bait.CRICKET: {
+    def formatted_name(self):
+        splits = self.id.split(' ')
+        ret = ''
+        for s in splits:
+            ret += s.capitalize() + ' '
 
-    },
-    Bait.FROZEN_MACKEREL: {
+        return ret.strip()
 
-    },
-    Bait.LIVE_MACKEREL: {
+    def max_rarity_enum(self):
+        return RarityType(self.max_rarity)
 
-    },
-    Bait.SINGLE_HOOK_LURE: {
+    def get_probability_set(self) -> [(RarityType, float)]:
+        unweighted = []
+        for i in range(self.max_rarity + 1):
+            result = -3 * math.sqrt(i) + 10
+            if i >= self.max_rarity - 2:
+                result += self.luck / ((self.max_rarity + 1) - i)
 
-    },
-    Bait.DOUBLE_HOOK_LURE: {
+            unweighted.append(result)
 
-    },
-    Bait.REFLECTIVE_SINGLE_HOOK_LURE: {
+        # Normalize values
+        probs = np.array(unweighted)
+        probs /= np.sum(probs)
 
-    },
-    Bait.REFLECTIVE_DOUBLE_HOOK_LURE: {
+        map = []
+        for i in range(self.max_rarity + 1):
+            map.append((RarityType(i), probs[i]))
 
-    },
-    Bait.EXTRA_LARGE_REFLECTIVE_LURE: {
+        return map
 
-    }
-}
+bait_info = [
+    Bait(id='small worm', level_required=5, cost=10, max_rarity=int(RarityType.COMMON), luck=0.0, exp_multiplier=0.0, coin_multiplier=0.0),
+    Bait(id='large worm', level_required=7, cost=25, max_rarity=int(RarityType.UNCOMMON), luck=0.0, exp_multiplier=0.0, coin_multiplier=0.0),
+    Bait(id='small shrimp', level_required=11, cost=35, max_rarity=int(RarityType.RARE), luck=0.05, exp_multiplier=0.0, coin_multiplier=0.0),
+    Bait(id='large shrimp', level_required=16, cost=45, max_rarity=int(RarityType.RARE), luck=0.1, exp_multiplier=0.0, coin_multiplier=0.03),
+    Bait(id='giant shrimp', level_required=22, cost=50, max_rarity=int(RarityType.VERY_RARE), luck=0.13, exp_multiplier=0.0, coin_multiplier=0.05),
+    Bait(id='frozen finger mullet', level_required=30, cost=65, max_rarity=int(RarityType.VERY_RARE), luck=0.15, exp_multiplier=0.1, coin_multiplier=0.07),
+    Bait(id='live finger mullet', level_required=41, cost=75, max_rarity=int(RarityType.ULTRA_RARE), luck=0.21, exp_multiplier=0.16, coin_multiplier=0.11),
+    Bait(id='leech', level_required=48, cost=90, max_rarity=int(RarityType.ULTRA_RARE), luck=0.28, exp_multiplier=0.2, coin_multiplier=0.18),
+    Bait(id='frozen mackerel', level_required=56, cost=115, max_rarity=int(RarityType.ULTRA_RARE), luck=0.35, exp_multiplier=0.24, coin_multiplier=0.24),
+    Bait(id='live mackerel', level_required=65, cost=150, max_rarity=int(RarityType.EPIC), luck=0.50, exp_multiplier=0.40, coin_multiplier=0.35),
+    Bait(id='single hook lure', level_required=71, cost=200, max_rarity=int(RarityType.EPIC), luck=0.75, exp_multiplier=0.52, coin_multiplier=0.41),
+    Bait(id='double hook lure', level_required=80, cost=275, max_rarity=int(RarityType.EPIC), luck=0.90, exp_multiplier=0.65, coin_multiplier=0.50),
+    Bait(id='reflective lure', level_required=87, cost=375, max_rarity=int(RarityType.MYTHICAL), luck=1.00, exp_multiplier=0.80, coin_multiplier=0.74),
+    Bait(id='scented lure', level_required=93, cost=500, max_rarity=int(RarityType.MYTHICAL), luck=1.27, exp_multiplier=1.00, coin_multiplier=0.95),
+    Bait(id='blood stained lure', level_required=100, cost=750, max_rarity=int(RarityType.MYTHICAL), luck=1.50, exp_multiplier=1.25, coin_multiplier=1.17),
+    Bait(id='naked ballyhoo', level_required=110, cost=1000, max_rarity=int(RarityType.LEGENDARY), luck=2.00, exp_multiplier=1.75, coin_multiplier=1.62)
+]
 
+# Ensure name lengths are no more than 25 characters and that other discord API limitations are accounted for.
+def validate_bait():
+    if len(bait_info) > 25:
+        raise Exception('Cannot have >25 fish bait options')
+
+    bad_names = []
+    for bait in bait_info:
+        if len(bait.id) > 25:
+            bad_names.append(bait.id)
+
+    if len(bad_names) > 0:
+        raise Exception('(Bait validation error) - names present that are >25 characters: ' + str(bad_names))
+
+validate_bait()
+
+def get_bait_by_id(name):
+    return next(filter(lambda bait: bait.id == name, bait_info), None)
 
 # TODO: FishingRod data
-class FishingRod(Enum):
+class FishingRod(DataEnum):
     pass
 
 rod_info = {
@@ -199,7 +147,6 @@ def select_random_quality():
     rng = np.random.default_rng()
     res = rng.choice(options, p=weights, replace=True)
     return res.value
-
 
 names_trash = ['glass bottle', 'rock', 'seaweed', 't-shirt', 'piece of plastic', 'worn rag', 'bloody rag',
                'shoe', 'used hairbrush', 'shard of glass', 'plastic bottle', 'barnacle encrusted watch', 'sponge',
@@ -287,7 +234,7 @@ color_l = Colour.from_rgb(255, 92, 33)  # Strong orange
 # Weights: 2 weights, in kilograms, of the items/fish that can be caught. Values are inclusive ranges and will be selected at random.
 
 data = {
-    RarityData.TRASH: {
+    RarityType.TRASH: {
         "names": names_trash,
         "prefixes": pfx_trash,
         "postfixes": pstfx_trash,
@@ -298,7 +245,7 @@ data = {
         "line_thickness_mm": 0.00,
         "weights": [0.1, 2.0]
     },
-    RarityData.VERY_COMMON: {
+    RarityType.VERY_COMMON: {
         "names": names_vc,
         "prefixes": pfx_vc,
         "postfixes": pstfx_vc,
@@ -309,7 +256,7 @@ data = {
         "line_thickness_mm": 0.00,
         "weights": [0.1, 2.0]
     },
-    RarityData.COMMON: {
+    RarityType.COMMON: {
         "names": names_c,
         "prefixes": pfx_c,
         "postfixes": pstfx_c,
@@ -320,7 +267,7 @@ data = {
         "line_thickness_mm": 0.10,
         "weights": [1.0, 3.5]
     },
-    RarityData.UNCOMMON: {
+    RarityType.UNCOMMON: {
         "names": names_uc,
         "prefixes": pfx_uc,
         "postfixes": pstfx_uc,
@@ -331,7 +278,7 @@ data = {
         "line_thickness_mm": 0.30,
         "weights": [2.5, 7.0]
     },
-    RarityData.RARE: {
+    RarityType.RARE: {
         "names": names_r,
         "prefixes": pfx_r,
         "postfixes": pstfx_r,
@@ -342,7 +289,7 @@ data = {
         "line_thickness_mm": 0.40,
         "weights": [5.5, 15.0]
     },
-    RarityData.VERY_RARE: {
+    RarityType.VERY_RARE: {
         "names": names_vr,
         "prefixes": pfx_vr,
         "postfixes": pstfx_vr,
@@ -353,7 +300,7 @@ data = {
         "line_thickness_mm": 0.50,
         "weights": [10.0, 22.0]
     },
-    RarityData.ULTRA_RARE: {
+    RarityType.ULTRA_RARE: {
         "names": names_ur,
         "prefixes": pfx_ur,
         "postfixes": pstfx_ur,
@@ -364,7 +311,7 @@ data = {
         "line_thickness_mm": 0.70,
         "weights": [20.0, 35.0]
     },
-    RarityData.EPIC: {
+    RarityType.EPIC: {
         "names": names_e,
         "prefixes": pfx_e,
         "postfixes": pstfx_e,
@@ -375,7 +322,7 @@ data = {
         "line_thickness_mm": 1.00,
         "weights": [30.0, 55.0]
     },
-    RarityData.MYTHICAL: {
+    RarityType.MYTHICAL: {
         "names": names_m,
         "prefixes": pfx_m,
         "postfixes": pstfx_m,
@@ -386,7 +333,7 @@ data = {
         "line_thickness_mm": 1.40,
         "weights": [50.0, 110.0]
     },
-    RarityData.LEGENDARY: {
+    RarityType.LEGENDARY: {
         "names": names_l,
         "prefixes": pfx_l,
         "postfixes": pstfx_l,
@@ -445,7 +392,7 @@ class FishData:
         """Returns a statement for how the fish was caught. This is output directly to the user."""
         name = self.name
         # Capitalize name if legendary
-        if self.rarity == RarityData.LEGENDARY:
+        if self.rarity == RarityType.LEGENDARY:
             name = name.upper()
 
         # Get a random statement and replace the _ in each with an emboldened version of the fish name.
@@ -490,7 +437,7 @@ class FishData:
     def get_random_rarity():
         rng = np.random.default_rng()
 
-        selection = rng.choice(keys, 1, p=get_probabilities(), replace=True).astype(RarityData)
+        selection = rng.choice(keys, 1, p=get_probabilities(), replace=True).astype(RarityType)
         return selection[0]
 
     @staticmethod
